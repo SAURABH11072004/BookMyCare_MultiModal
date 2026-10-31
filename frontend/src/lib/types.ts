@@ -128,6 +128,8 @@ export interface RedFlag {
 }
 
 export interface SourceDoc {
+  id?: string;
+  reasons?: string[];
   slug: string;
   title: string;
   source: "WHO" | "CDC" | string;
@@ -166,7 +168,59 @@ export interface ImageResult {
   } | null;
 }
 
+export interface AiStatus {
+  status: "generated" | "mock" | "failed" | "skipped_emergency";
+  is_real_ai: boolean;
+  provider: string;
+  model: string;
+  reason: string | null;
+  message: string | null;
+  attempts: { provider: string; ok: boolean; kind?: string; error?: string }[];
+}
+
+export interface Citation {
+  id: string;
+  title: string;
+  source: string;
+  url: string;
+  excerpt: string;
+  reasons: string[];
+}
+
+export interface AssessedCondition {
+  key: string;
+  name: string;
+  status: "unconfirmed";
+  is_diagnosis: false;
+  confidence: "low" | "moderate" | "high";
+  match_score: number;
+  supporting: { type: string; label: string; points: number }[];
+  against: { type: string; label: string; points: number }[];
+  not_reported: string[];
+  history_considered: string[];
+  already_in_history: boolean;
+  evidence_ids: string[];
+  evidence_note: string | null;
+  uncertainty: string[];
+  ai_explanation: string | null;
+  ai_cites: string[];
+  ai_grounded: boolean;
+}
+
+export interface Assessment {
+  diagnosis_status: string;
+  ai: AiStatus;
+  urgency: { level: Urgency; guidance: string; set_by: string; red_flag_codes: string[] };
+  possible_conditions: AssessedCondition[];
+  uncertainty: { text: string; source: "rules" | "ai" }[];
+  limitations: string[];
+  history_considered: { conditions: string[]; medications: string[]; allergies: string[]; family_history: string[] };
+  citations: Citation[];
+}
+
 export interface AnalysisResult {
+  ai?: AiStatus;
+  assessment?: Assessment;
   disclaimer: string;
   is_mock: boolean;
   urgency: Urgency;
@@ -186,6 +240,8 @@ export interface AnalysisResult {
     questions_for_doctor: string[];
     notice?: string | null;
     safety_filtered_sentences: number;
+    condition_notes?: { key: string; explanation: string; cites: string[]; grounded: boolean }[];
+    uncertainty?: string[];
   };
   data_completeness: Record<"symptoms" | "lab_values" | "images" | "profile", boolean>;
   limitations: string[];
@@ -238,6 +294,9 @@ export interface SystemStatus {
     active_provider: string;
     mock_mode: boolean;
     force_mock: boolean;
+    allow_mock_fallback?: boolean;
+    unavailable_reason?: string | null;
+    unavailable_message?: string | null;
     providers: { name: string; configured: boolean; model: string; vision: boolean }[];
   };
   ocr: { tesseract_available: boolean };

@@ -107,6 +107,7 @@ def search(db: Session, query: str, k: int = 5, topics: list[str] | None = None)
             "slug": doc["slug"], "title": doc["title"], "source": doc["source"], "url": doc["url"],
             "topics": doc["topics"], "origin": doc["origin"], "score": round(score, 3),
             "snippet": snippet(doc["content"], query),
+            "excerpt": snippet(doc["content"], query, length=700),
         })
     return out
 

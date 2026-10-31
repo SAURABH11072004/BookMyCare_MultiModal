@@ -105,7 +105,7 @@ export default function Layout() {
 
         {status?.ai.mock_mode && (
           <div className="no-print border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
-            <strong>Mock AI mode:</strong> no AI provider key is configured. Explanations are template-based; screening uses the rule-based engine.
+            <strong>Mock AI mode:</strong> {status.ai.unavailable_message ?? "no real AI provider is available."} Explanations are template-based; screening uses the rule-based engine.
           </div>
         )}
 

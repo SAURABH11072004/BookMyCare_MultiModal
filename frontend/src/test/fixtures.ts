@@ -33,3 +33,43 @@ export const analysisFixture: AnalysisResult = {
   limitations: ["Rule-based heuristic."],
   provenance: { engine_version: "rules-1.0", explanation_provider: "mock", explanation_model: "template-v1", provider_attempts: [{ provider: "mock", ok: true }], image_provider: null, duration_ms: 12 },
 };
+
+import type { AiStatus, Assessment } from "../lib/types";
+
+export const citationsFixture = [
+  { id: "S1", title: "Dengue - WHO", source: "WHO", url: "https://www.who.int/x", excerpt: "Dengue is a viral infection.", reasons: ["condition:dengue"] },
+];
+
+export const assessmentFixture: Assessment = {
+  diagnosis_status: "screening_only_not_a_diagnosis",
+  ai: { status: "generated", is_real_ai: true, provider: "gemini", model: "gemini-3.8-flash", reason: null, message: null, attempts: [{ provider: "gemini", ok: true }] },
+  urgency: { level: "urgent", guidance: "See a doctor within 24 hours.", set_by: "safety_rules", red_flag_codes: ["dengue_warning"] },
+  possible_conditions: [
+    {
+      key: "dengue", name: "Dengue fever", status: "unconfirmed", is_diagnosis: false, confidence: "high", match_score: 0.86,
+      supporting: [{ type: "symptom", label: "Fever", points: 2 }], against: [], not_reported: ["Rash"],
+      history_considered: ["Existing condition in your history: Type 2 diabetes"], already_in_history: false,
+      evidence_ids: ["S1"], evidence_note: null, uncertainty: ["This is a screening match, not a confirmed diagnosis."],
+      ai_explanation: "Fever and low platelets can fit dengue; a doctor can confirm.", ai_cites: ["S1"], ai_grounded: true,
+    },
+  ],
+  uncertainty: [
+    { text: "Condition scores come from hand-set rules.", source: "rules" },
+    { text: "A blood test is needed to tell these apart.", source: "ai" },
+  ],
+  limitations: ["Rule-based heuristic."],
+  history_considered: { conditions: ["Type 2 diabetes"], medications: [], allergies: [], family_history: [] },
+  citations: citationsFixture,
+};
+
+export function withAi(ai: Partial<AiStatus> & Pick<AiStatus, "status">, extra: Partial<AnalysisResult> = {}): AnalysisResult {
+  const full: AiStatus = { is_real_ai: ai.status === "generated", provider: "gemini", model: "gemini-3.8-flash", reason: null, message: null, attempts: [], ...ai };
+  return {
+    ...analysisFixture,
+    is_mock: full.status === "mock",
+    ai: full,
+    assessment: { ...assessmentFixture, ai: full },
+    sources: [{ ...analysisFixture.sources[0], id: "S1", reasons: ["condition:dengue"] }],
+    ...extra,
+  };
+}

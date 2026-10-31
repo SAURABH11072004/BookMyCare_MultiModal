@@ -10,7 +10,7 @@ import { Alert, Badge, Button, Card, PageHeader, ProgressBar, Spinner, cx } from
 import { SourceCard } from "./Library";
 import { api } from "../lib/api";
 import { confidenceClass, formatDateTime, pct, urgencyMeta } from "../lib/format";
-import type { ConditionMatch, Factor, AnalysisResult } from "../lib/types";
+import type { AiStatus, AssessedCondition, Citation, ConditionMatch, Factor, AnalysisResult } from "../lib/types";
 import { useAsync } from "../lib/useAsync";
 
 const FACTOR_LABEL: Record<Factor["type"], string> = {
@@ -36,7 +36,36 @@ export function FactorList({ factors }: { factors: Factor[] }) {
   );
 }
 
-function ConditionCard({ c, rank }: { c: ConditionMatch; rank: number }) {
+function CiteChips({ ids, citations }: { ids: string[]; citations: Citation[] }) {
+  if (!ids.length) return null;
+  const byId = new Map(citations.map((c) => [c.id, c]));
+  return (
+    <span className="inline-flex flex-wrap gap-1 align-middle">
+      {ids.map((id) => {
+        const c = byId.get(id);
+        return c ? (
+          <a key={id} href={c.url} target="_blank" rel="noreferrer noopener" title={`${c.source}: ${c.title}`}
+             className="rounded bg-sky-50 px-1.5 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-sky-200 hover:underline">[{id}]</a>
+        ) : null;
+      })}
+    </span>
+  );
+}
+
+export function AiNotice({ ai }: { ai: AiStatus }) {
+  if (ai.status === "generated") {
+    return <p className="text-xs text-slate-500">Written by {ai.provider} ({ai.model}) from the rule-based results and the cited WHO/CDC passages, then checked by safety filters. Urgency is set by safety rules, not by the AI.</p>;
+  }
+  if (ai.status === "skipped_emergency") {
+    return <Alert kind="info" title="Safety rules only">{ai.message}</Alert>;
+  }
+  if (ai.status === "failed") {
+    return <Alert kind="error" title="AI explanation unavailable">{ai.message} The rule-based assessment below is unaffected.</Alert>;
+  }
+  return <Alert kind="warning" title="Mock AI - a real AI model was not used">{ai.message}</Alert>;
+}
+
+function ConditionCard({ c, rank, assessed, citations }: { c: ConditionMatch; rank: number; assessed?: AssessedCondition; citations: Citation[] }) {
   const [open, setOpen] = useState(rank === 0);
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -67,6 +96,32 @@ function ConditionCard({ c, rank }: { c: ConditionMatch; rank: number }) {
             )}
           </div>
           <div className="space-y-3 text-sm">
+            {assessed && (
+              <p className="text-xs font-medium text-amber-800">Possible match only - not a diagnosis, not confirmed.</p>
+            )}
+            {assessed?.ai_explanation && (
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI explanation</h4>
+                <p className="text-slate-700">{assessed.ai_explanation} <CiteChips ids={assessed.ai_cites} citations={citations} /></p>
+                {!assessed.ai_grounded && <p className="text-xs text-amber-700">No source was cited for this explanation.</p>}
+              </div>
+            )}
+            {assessed && (
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence from WHO / CDC</h4>
+                {assessed.evidence_ids.length ? (
+                  <p className="text-slate-600"><CiteChips ids={assessed.evidence_ids} citations={citations} /></p>
+                ) : (
+                  <p className="text-slate-500">{assessed.evidence_note}</p>
+                )}
+              </div>
+            )}
+            {assessed && assessed.history_considered.length > 0 && (
+              <div><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">From your history</h4><ul className="list-disc pl-5 text-slate-600">{assessed.history_considered.map((h) => <li key={h}>{h}</li>)}</ul></div>
+            )}
+            {assessed && (
+              <div><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Uncertainty</h4><ul className="list-disc pl-5 text-slate-600">{assessed.uncertainty.map((u) => <li key={u}>{u}</li>)}</ul></div>
+            )}
             {c.notes.map((n) => <Alert key={n} kind="info">{n}</Alert>)}
             {c.not_reported.length > 0 && (
               <div><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Typical features you did not report</h4><p className="text-slate-600">{c.not_reported.join(", ")}</p></div>
@@ -92,8 +147,19 @@ function ListBlock({ icon: Icon, title, items }: { icon: typeof Info; title: str
   );
 }
 
+function summaryBadge(r: AnalysisResult) {
+  const ai = r.ai;
+  if (!ai) return r.is_mock ? <MockBadge /> : <Badge className="bg-brand-50 text-brand-800">AI: {r.provenance.explanation_provider}</Badge>;
+  if (ai.status === "generated") return <Badge className="bg-brand-50 text-brand-800">AI: {ai.provider}</Badge>;
+  if (ai.status === "mock") return <MockBadge />;
+  if (ai.status === "failed") return <Badge className="bg-red-50 text-red-700">AI unavailable</Badge>;
+  return <Badge className="bg-slate-100 text-slate-700">Safety rules</Badge>;
+}
+
 export function ResultView({ result: r }: { result: AnalysisResult }) {
   const meta = urgencyMeta[r.urgency];
+  const citations = r.assessment?.citations ?? [];
+  const assessedByKey = new Map((r.assessment?.possible_conditions ?? []).map((a) => [a.key, a]));
   return (
     <div className="space-y-6">
       <div className={cx("rounded-xl border-2 p-5", meta.ring)} data-testid="urgency-banner">
@@ -121,11 +187,17 @@ export function ResultView({ result: r }: { result: AnalysisResult }) {
 
       <Card
         title={<span className="flex items-center gap-2"><Bot className="h-5 w-5 text-brand-600" /> Summary</span>}
-        actions={r.is_mock ? <MockBadge /> : <Badge className="bg-brand-50 text-brand-800">AI: {r.provenance.explanation_provider}</Badge>}
+        actions={summaryBadge(r)}
       >
         <div className="space-y-3 text-sm leading-relaxed text-slate-700">
           <p>{r.explanation.summary}</p>
-          {r.explanation.notice && <p className="text-xs text-amber-800">{r.explanation.notice}</p>}
+          {r.ai ? <AiNotice ai={r.ai} /> : r.explanation.notice && <p className="text-xs text-amber-800">{r.explanation.notice}</p>}
+          {r.assessment && r.assessment.uncertainty.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">What we are unsure about</h3>
+              <ul className="mt-1 list-disc pl-5 text-slate-600">{r.assessment.uncertainty.map((u) => <li key={u.text}>{u.text}{u.source === "ai" && <span className="text-xs text-slate-400"> (AI)</span>}</li>)}</ul>
+            </div>
+          )}
           {r.explanation.safety_filtered_sentences > 0 && (
             <p className="text-xs text-slate-500">{r.explanation.safety_filtered_sentences} AI sentence(s) were removed by the safety filter (dosing or diagnostic claims).</p>
           )}
@@ -137,7 +209,7 @@ export function ResultView({ result: r }: { result: AnalysisResult }) {
         {r.conditions.length === 0 ? (
           <Alert kind="info">No condition in the knowledge base matched strongly. This does not mean you are well - see a doctor if you are concerned.</Alert>
         ) : (
-          <div className="space-y-3">{r.conditions.map((c, i) => <ConditionCard key={c.key} c={c} rank={i} />)}</div>
+          <div className="space-y-3">{r.conditions.map((c, i) => <ConditionCard key={c.key} c={c} rank={i} assessed={assessedByKey.get(c.key)} citations={citations} />)}</div>
         )}
       </section>
 
@@ -182,8 +254,20 @@ export function ResultView({ result: r }: { result: AnalysisResult }) {
       </Card>
 
       {r.sources.length > 0 && (
-        <Card title="Trusted sources" subtitle="WHO and CDC guidance related to these results.">
-          <div className="grid gap-3 md:grid-cols-2">{r.sources.map((s) => <SourceCard key={s.slug} doc={s} />)}</div>
+        <Card title="Evidence used" subtitle="WHO and CDC passages retrieved for these results. Citation numbers match the [S#] tags above.">
+          <div className="grid gap-3 md:grid-cols-2">
+            {r.sources.map((s) => (
+              <div key={s.slug}>
+                {s.id && (
+                  <p className="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <Badge className="bg-sky-50 text-sky-800">{s.id}</Badge>
+                    {s.reasons?.map((x) => <span key={x}>{x.startsWith("condition:") ? `for ${x.slice(10).replace(/_/g, " ")}` : x.startsWith("history:") ? "your history" : x.startsWith("red_flag:") ? "warning sign" : "symptoms"}</span>)}
+                  </p>
+                )}
+                <SourceCard doc={s} />
+              </div>
+            ))}
+          </div>
         </Card>
       )}
 

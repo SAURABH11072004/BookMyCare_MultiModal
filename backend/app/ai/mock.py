@@ -44,16 +44,20 @@ class MockProvider(LLMProvider):
     @staticmethod
     def _explanation(ctx: dict) -> dict:
         conditions = ctx.get("conditions", [])
-        abnormal = ctx.get("abnormal_labs", [])
+        labs = ctx.get("labs", [])
+        abnormal = ctx.get("abnormal_labs") or [l for l in labs if l.get("status") not in (None, "normal")]
+        if not labs and ctx.get("lab_count"):
+            labs = [{}] * ctx["lab_count"]
         urgency = ctx.get("urgency", "routine")
-        symptoms = ctx.get("symptom_labels", [])
+        symptoms = ctx.get("symptoms") or ctx.get("symptom_labels") or []
 
-        parts = [{
-            "emergency": "Seek emergency medical care now - some answers match emergency warning signs.",
-            "urgent": "See a doctor within 24 hours - some findings need prompt review.",
-            "soon": "Consider booking a doctor's appointment in the next few days.",
-            "routine": "No urgent warning signs were detected in the information provided.",
-        }[urgency]]
+        parts = []
+        # For urgent/emergency results the engine puts the safety guidance first.
+        if urgency in ("soon", "routine"):
+            parts.append({
+                "soon": "Consider booking a doctor's appointment in the next few days.",
+                "routine": "No urgent warning signs were detected in the information provided.",
+            }[urgency])
         if symptoms:
             parts.append(f"You reported: {', '.join(symptoms[:8])}.")
         if conditions:
@@ -61,7 +65,7 @@ class MockProvider(LLMProvider):
             others = [c["name"] for c in conditions[1:3]]
             parts.append(
                 f"The screening rules found the closest match with '{top['name']}' "
-                f"(evidence match {round(top['match_score'] * 100)}%, {top['confidence']} confidence)."
+                f"(evidence match {round(top['match_score'] * 100)}%, {top['confidence']} confidence). This is not a diagnosis."
             )
             if others:
                 parts.append(f"Other possibilities to discuss: {', '.join(others)}.")
@@ -69,12 +73,22 @@ class MockProvider(LLMProvider):
             parts.append("The screening rules did not find a strong match with any condition in the knowledge base.")
 
         if abnormal:
-            lab_txt = "; ".join(f"{l['test']} {l['value']} {l.get('unit') or ''} ({l['status'].replace('_', ' ')})".strip() for l in abnormal[:6])
+            lab_txt = "; ".join(f"{l['test']} {l['value']} {l.get('unit') or ''} ({l['status'].replace('_', ' ')})".replace("  ", " ") for l in abnormal[:6])
             interp = f"Values outside the typical reference range: {lab_txt}. Your doctor will interpret these alongside your history."
-        elif ctx.get("lab_count"):
+        elif labs:
             interp = "All recognised lab values were within typical reference ranges."
         else:
             interp = "No lab values were recognised in the selected reports."
+
+        notes = []
+        for c in conditions[:3]:
+            if not c.get("key"):
+                continue
+            why = ", ".join(c.get("supporting", [])[:3]) or "the reported information"
+            text = f"Suggested because of: {why}."
+            if c.get("already_in_patient_history"):
+                text += " You already listed this condition in your history."
+            notes.append({"key": c["key"], "explanation": text, "cites": list(c.get("evidence_ids", []))[:2]})
 
         questions = ["Do these results need repeat or confirmatory testing?", "Which warning signs should make me seek care sooner?"]
         if conditions:
@@ -82,6 +96,8 @@ class MockProvider(LLMProvider):
         return {
             "summary": " ".join(parts),
             "report_interpretation": interp,
+            "condition_notes": notes,
+            "uncertainty": ["Template output: no language model reviewed these results."],
             "questions_for_doctor": questions,
             "notice": MOCK_NOTICE,
         }

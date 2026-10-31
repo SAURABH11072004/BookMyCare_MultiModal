@@ -34,16 +34,20 @@ class Settings(BaseSettings):
 
     # AI providers. Order of preference; the first one with a key is used and
     # the rest are fallbacks. "mock" is always appended as the final fallback.
-    ai_provider_order: str = "gemini,groq,openrouter"
+    ai_provider_order: str = "gemini,groq,openrouter"  # Gemini is the primary provider
     ai_force_mock: bool = False
-    ai_timeout_seconds: float = 30.0
+    ai_timeout_seconds: float = 45.0
+    ai_max_output_tokens: int = 4096  # Gemini 3 models spend part of this on internal reasoning
+    # If true (default) a clearly-labelled template summary is shown when no real AI is
+    # available. If false, the assessment shows "AI explanation unavailable" instead.
+    ai_allow_mock_fallback: bool = True
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"  # stable, free tier, ~1s. On 2026-10-25: gemini-3.8-flash hung/503; gemini-3.6-flash free tier = 20 requests/day. gemini-2.0-flash is shut down. See ai.google.dev/gemini-api/docs/deprecations
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"  # llama-3.3-70b-versatile was retired by Groq on 2026-08-16
     openrouter_api_key: str = ""
-    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    openrouter_model: str = ""  # set an explicit, currently-available model id to enable OpenRouter
 
     # Safety messaging (defaults are for India; change for your region)
     emergency_number: str = "112"

@@ -19,6 +19,18 @@
 `app/services/analysis_engine.py` orchestrates the steps. Each step is deterministic except the AI explanation and the
 optional image observation; those are clearly labelled with their provider.
 
+## Grounded assessment (AI + retrieval)
+
+`services/grounding.py` sits between the rule engine and the language model:
+
+1. **Evidence** - `gather_evidence()` retrieves WHO/CDC passages (BM25, topic-matched) for each of the top three conditions, for red-flag topics (emergency, stroke, mental health) and for the patient's own history (e.g. diabetes, asthma, smoking). Passages are numbered `S1…S8`.
+2. **Context** - `build_context()` gives the model the scored conditions (supporting / against / missing evidence), lab values, patient history, the fixed urgency and the numbered passages.
+3. **Generation** - `registry.generate()` tries providers in order; `validate_ai_response()` rejects unusable replies so the next provider is tried. Failures keep their kind (`rate_limited`, `auth_error`, `model_not_found`, `timeout`, `invalid_response`, …).
+4. **Cleaning** - `clean_ai_output()` drops citation ids that were not retrieved, notes about unknown conditions, diagnostic assertions, dosing, "stop your medicine" and "no need to see a doctor" sentences, and always puts the rule-based urgency guidance first for urgent results.
+5. **Assessment** - `build_assessment()` returns one structured block: possible conditions (unconfirmed, with supporting / against evidence, history considered, citations, uncertainty), overall uncertainty, limitations, next steps, citations and an explicit `ai` status (`generated | mock | failed | skipped_emergency`).
+
+Emergency urgency skips the model completely. `is_mock` is true only when template text is shown.
+
 ## Scoring (explainable)
 
 For each condition in `app/data/conditions.json`:
@@ -55,7 +67,7 @@ These weights are hand-set for an explainable prototype and **are not clinically
 ## Roadmap / not yet implemented
 
 * Trained, validated imaging models (e.g. chest X-ray classifier) behind the existing image interface.
-* Vector embeddings for hybrid BM25 + dense retrieval.
+* Vector embeddings for hybrid BM25 + dense retrieval, and a patient-facing question-answer chat built on the same evidence + citation layer.
 * Evaluation framework with labelled synthetic vignettes (precision@k, red-flag recall).
 * Clinician role, appointment booking, report sharing, audit log, rate limiting, refresh tokens.
 * Multilingual explanations.

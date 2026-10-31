@@ -21,10 +21,11 @@ based on the concept *"An Explainable Multimodal AI Framework for Disease Detect
 | Confidence | Heuristic evidence-match score (not a probability) + low / moderate / high confidence label |
 | Safety | Red-flag triage (cardiac, stroke, breathing, meningitis, self-harm, dengue warning signs, critical labs, BP crisis, pregnancy…), urgency levels, AI output sanitiser (removes dosing / diagnostic claims / "stop your medicine"), disclaimers |
 | Care pathway | Personalised plan: immediate actions, self-care, when to see a doctor, tests, specialists, profile-specific advice |
-| WHO / CDC retrieval | BM25 search over 37 curated summaries (with source links) + an ingestion script that indexes live who.int / cdc.gov pages |
-| AI providers | Common interface for Gemini, Groq, OpenRouter with automatic fallback; **mock mode** (clearly labelled) when no keys are set |
+| WHO / CDC retrieval | BM25 search over 37 curated summaries (with source links) + an ingestion script that indexes live who.int / cdc.gov pages. Retrieval is run **per condition, per red flag and per history item** and the passages are numbered `[S1]`, `[S2]`… |
+| Grounded AI assessment | The AI explains the rule-based results using the retrieved passages and the patient's history; citations are validated against what was really retrieved. Every result states whether it came from a real AI, a labelled mock, nothing (failure) or safety rules only (emergency) |
+| AI providers | Gemini (primary), Groq and OpenRouter behind one interface with automatic fallback and **classified errors** (missing key, rate limit, bad key, retired model, timeout, invalid response). **Mock mode** is always labelled and can be switched off |
 | UI | Responsive React app: dashboard, profile, history, reports, analysis wizard, explainable results (printable), health library |
-| Tests | 50 backend tests (pytest), 10 frontend tests (Vitest), end-to-end browser smoke test performed during development |
+| Tests | 81 backend tests (pytest), 15 frontend tests (Vitest). Provider HTTP is stubbed in tests; see "Verify the live AI workflow" for the real-key check |
 
 ## Tech stack
 
@@ -35,7 +36,7 @@ based on the concept *"An Explainable Multimodal AI Framework for Disease Detect
 
 ## Run locally (Windows)
 
-Prerequisites: **Python 3.10+** (3.12 recommended), **Node.js 20+**, Git (optional).
+Prerequisites: **Python 3.12 or newer recommended** (the pinned SQLAlchemy 2.1.4 could not be installed on Python 3.10), **Node.js 20+**, Git (optional).
 Optional: [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) for scanned reports.
 
 ```powershell
@@ -68,20 +69,48 @@ npm run dev
 ```
 </details>
 
-### Enabling real AI providers
+### Enabling the real AI (Gemini)
 
-Put one or more keys in `backend/.env` and restart the backend — no code changes needed:
+1. Create a key at <https://aistudio.google.com/apikey>.
+2. Open `backend\.env` (created by `setup.ps1` from `.env.example`) and set:
 
+   ```
+   GEMINI_API_KEY=<your key>
+   GEMINI_MODEL=gemini-3.5-flash-lite
+   ```
+
+   Keep the key out of git: `backend/.env` is git-ignored. Do not paste it into chats, screenshots or the frontend.
+3. **Restart the backend** (settings are read once at start-up).
+   Free-tier limits are **per model**: when tested (25 Oct 2026) `gemini-3.8-flash` hung or returned 503, and `gemini-3.6-flash` allowed only 20 requests per day, so the default is `gemini-3.5-flash-lite`. If `check_ai` reports `rate_limited`, timeouts or 503 "high demand", switch `GEMINI_MODEL` to another current free-tier model (list: <https://ai.google.dev/gemini-api/docs/models>, your limits: <https://aistudio.google.com/rate-limit>).
+4. Optional fallbacks: `GROQ_API_KEY` (+ `GROQ_MODEL`) and `OPENROUTER_API_KEY` with an explicit `OPENROUTER_MODEL`. They are tried in `AI_PROVIDER_ORDER`.
+
+> **Model names expire.** `gemini-2.0-flash` (shut down 1 June 2026) and Groq's `llama-3.3-70b-versatile` (retired 16 August 2026) no longer work. If you see `model_not_found`, check the current names at <https://ai.google.dev/gemini-api/docs/deprecations> and <https://console.groq.com/docs/deprecations>.
+
+#### What the AI does and does not do
+
+* The rule-based engine scores conditions, detects red flags and **decides urgency**. The model cannot change urgency, add conditions or diagnose.
+* The model receives the structured results, the patient's history (conditions, medicines, allergies, family history) and numbered WHO/CDC passages, and must cite passages by id. Citations that do not match a retrieved passage are dropped; every displayed source is a real WHO/CDC page from the knowledge base.
+* Sentences that state a diagnosis ("you have dengue"), give doses, tell the patient to change medicines, or downplay the need for care ("no need to see a doctor") are removed.
+* **Emergency results never call the model**: the guidance comes straight from the safety rules and the page says so.
+
+#### How failures are shown (never silent)
+
+| Situation | What you see |
+|---|---|
+| Real AI answered | `AI: gemini` badge, citations, no mock label |
+| No key / `AI_FORCE_MOCK=true` | Amber **Mock AI** badge and the reason (`missing_key` / `forced_mock`) |
+| Rate limit, bad key, retired model, timeout, invalid or blocked reply | The next provider is tried; if none works the result is **Mock AI** with the failure reasons listed (`all_providers_failed`) |
+| `AI_ALLOW_MOCK_FALLBACK=false` and no AI | Red **AI explanation unavailable** notice with the reasons; no template text. The rule-based assessment still appears |
+| Emergency warning signs | **Safety rules** badge; no AI used |
+
+#### Verify the live AI workflow
+
+```powershell
+cd backend
+.\.venv\Scripts\python -m scripts.check_ai          # one tiny call per configured provider; never prints keys
 ```
-GEMINI_API_KEY=...        # also enables optional image observations
-GROQ_API_KEY=...
-OPENROUTER_API_KEY=...
-AI_PROVIDER_ORDER=gemini,groq,openrouter
-```
 
-The first configured provider is used; if a call fails (network, quota, invalid JSON) the next one is tried, ending with the
-mock provider. The result page always shows which provider produced the explanation. The LLM only *explains* the rule-based
-results — it does not decide the condition ranking — and its output passes through the safety sanitiser.
+Then, with the backend restarted and the frontend running, sign in, open **New analysis**, enter *"high fever, pain behind the eyes, body aches and a rash"* with *4 days*, and run it. A real result shows the **AI: gemini** badge, `[S1]`-style citation chips linking to who.int / cdc.gov, an "Evidence used" card and a "What we are unsure about" list. `GET /api/system/status` shows the active provider and, if none, why.
 
 ### OCR for scanned reports
 

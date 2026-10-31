@@ -9,7 +9,18 @@ from typing import Any
 
 
 class ProviderError(RuntimeError):
-    pass
+    """A provider call failed. ``kind`` classifies the failure so the UI and
+    tests can distinguish them (never swallowed silently):
+
+    missing_key, auth_error, model_not_found, rate_limited, bad_request,
+    server_error, timeout, network, blocked, invalid_response, unsupported.
+    """
+
+    def __init__(self, message: str, kind: str = "error", status_code: int | None = None, retry_after: float | None = None):
+        super().__init__(message)
+        self.kind = kind
+        self.status_code = status_code
+        self.retry_after = retry_after
 
 
 @dataclass
@@ -57,7 +68,7 @@ class LLMProvider(ABC):
 
     def generate(self, req: LLMRequest) -> LLMResponse:
         if req.images and not self.supports_vision:
-            raise ProviderError(f"{self.name} does not support image input")
+            raise ProviderError(f"{self.name} does not support image input", kind="unsupported")
         text = self._generate(req)
         data = parse_json_loose(text) if req.json_mode else None
         return LLMResponse(text=text, provider=self.name, model=self.model, is_mock=self.is_mock, data=data)

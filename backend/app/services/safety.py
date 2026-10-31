@@ -121,20 +121,28 @@ URGENCY_GUIDANCE = {
 # --- Output sanitisation for AI-generated text --------------------------------
 
 _DOSAGE = re.compile(r"\b\d+(\.\d+)?\s?(mg|mcg|µg|ml|units?|iu|tablets?|capsules?)\b", re.I)
-_DEFINITIVE = re.compile(r"\b(you (definitely|certainly|clearly) have|you are diagnosed with|this confirms|i diagnose|diagnosis is)\b", re.I)
+_DEFINITIVE = re.compile(
+    r"\b(you (definitely|certainly|clearly|probably|likely|do) have|you have been diagnosed|you('| a)?ve been diagnosed|you are diagnosed with|"
+    r"you are suffering from|you suffer from|you are (diabetic|hypertensive|anaemic|anemic)|this confirms|i diagnose|"
+    r"(your )?diagnosis is|the diagnosis is)\b", re.I)
+# AI text must never reassure a patient out of seeking care that the safety rules require.
+_DOWNPLAY = re.compile(
+    r"\b(no need to (see|visit|consult|go to|call|seek)|(is|are|it's|it is|this is) not (a )?(serious|urgent|dangerous|an emergency)|"
+    r"nothing to worry|nothing serious|(do not|don't|doesn't|does not) need (to see|a doctor|medical|to worry)|"
+    r"can (safely )?wait|safe to (ignore|wait)|ignore (this|these|the) (symptom|sign)s?|unlikely to be serious)\b", re.I)
 _STOP_MEDS = re.compile(r"\b(stop|discontinue|double|skip) (taking )?(your )?(medication|medicine|insulin|tablets?)\b", re.I)
 
 
 def sanitize_text(text: str) -> tuple[str, list[str]]:
     """Remove sentences that give dosing instructions, tell users to change
-    prescribed medicines, or claim a definitive diagnosis."""
+    prescribed medicines, claim a definitive diagnosis, or downplay the need for care."""
     if not text:
         return text, []
     removed: list[str] = []
     sentences = re.split(r"(?<=[.!?])\s+", text)
     kept = []
     for sent in sentences:
-        if _DOSAGE.search(sent) or _DEFINITIVE.search(sent) or _STOP_MEDS.search(sent):
+        if _DOSAGE.search(sent) or _DEFINITIVE.search(sent) or _STOP_MEDS.search(sent) or _DOWNPLAY.search(sent):
             removed.append(sent.strip())
         else:
             kept.append(sent)
