@@ -24,11 +24,33 @@ class Settings(BaseSettings):
     upload_dir: Path = BACKEND_DIR / "uploads"
     max_upload_mb: int = 15
 
+    # Uploaded files are always encrypted (AES-256-GCM) before they are stored.
+    # 32 random bytes, base64. Without it a development key file is created in backend/.keys/.
+    file_encryption_key: str = ""
+    storage_backend: str = "local"  # local (UPLOAD_DIR) | supabase (private Storage bucket)
+    supabase_url: str = ""  # https://<project-ref>.supabase.co
+    supabase_secret_key: str = ""  # server-only secret / service_role key; never put it in the frontend
+    supabase_storage_bucket: str = "medical-files"
+    # Patients can open/download their OWN originals (decrypted with their own key, which only
+    # their sign-in unlocks). Set false to hide originals from patients too.
+    allow_file_download: bool = True
+
     # Security. A random default is generated per process if unset; set a real
     # value in .env so tokens survive restarts.
     jwt_secret: str = Field(default="")
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60 * 12
+
+    # Failed-login limits inside a sliding window (429 + Retry-After once reached).
+    login_max_failures: int = 5  # per email + client IP
+    login_max_failures_per_ip: int = 20  # per client IP across all emails
+    login_window_seconds: int = 15 * 60
+
+    # Send Strict-Transport-Security. Enable only when the API is served over HTTPS.
+    hsts_enabled: bool = False
+
+    # Team statistics: groups smaller than this are shown as "<N" so no one can be singled out.
+    stats_min_count: int = 5
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

@@ -3,12 +3,21 @@ export interface User {
   email: string;
   full_name: string;
   created_at: string;
+  role?: "patient" | "staff";
 }
 
 export interface TokenResponse {
   access_token: string;
   token_type: string;
   user: User;
+  /** Shown once after sign-up or a password reset; the only way back in after a forgotten password. */
+  recovery_code?: string | null;
+  has_recovery_code?: boolean;
+}
+
+export interface SecurityStatus {
+  has_recovery_code: boolean;
+  recovery_created_at: string | null;
 }
 
 export type Sex = "female" | "male" | "other";
@@ -92,12 +101,53 @@ export interface ReportDetail extends ReportSummary {
   extraction_error: string | null;
   lab_values: LabValue[];
   image_features: ImageFeatures | null;
+  /** false while originals are sealed on the server (no preview or download) */
+  file_download_allowed: boolean;
+}
+
+export type TrendAssessment = "worsening" | "approaching_limit" | "improving" | "stable" | "single_result";
+
+export interface LabTrendPoint {
+  date: string;
+  value: number;
+  status: LabStatus;
+  report_id: number | null;
+}
+
+export interface LabTrend {
+  code: string;
+  name: string;
+  unit: string;
+  category: string | null;
+  loinc: string | null;
+  ref_low: number | null;
+  ref_high: number | null;
+  n: number;
+  points: LabTrendPoint[];
+  latest: { date: string; value: number; status: LabStatus };
+  direction: "rising" | "falling" | "stable" | null;
+  assessment: TrendAssessment;
+  toward: "high" | "low" | null;
+  change: number | null;
+  change_pct: number | null;
+  slope_per_year: number | null;
+  span_days: number;
+  flags: { kind: string; text: string }[];
+  events: { date: string; category: string; title: string }[];
+  summary: string;
+}
+
+export interface TrendsResponse {
+  tests: LabTrend[];
+  with_history: number;
+  needs_attention: number;
+  note: string;
 }
 
 export type Urgency = "emergency" | "urgent" | "soon" | "routine";
 
 export interface Factor {
-  type: "symptom" | "lab" | "risk_factor" | "duration" | "image" | "missing";
+  type: "symptom" | "lab" | "risk_factor" | "duration" | "image" | "missing" | "trend";
   label: string;
   points: number;
   direction: "supports" | "against";
@@ -229,6 +279,7 @@ export interface AnalysisResult {
   symptoms: { key: string; label: string }[];
   conditions: ConditionMatch[];
   lab_values: LabValue[];
+  trends?: LabTrend[];
   abnormal_lab_count: number;
   reports: { report_id: number; title: string; extraction_status: string; lab_count: number }[];
   images: ImageResult[];
@@ -243,7 +294,7 @@ export interface AnalysisResult {
     condition_notes?: { key: string; explanation: string; cites: string[]; grounded: boolean }[];
     uncertainty?: string[];
   };
-  data_completeness: Record<"symptoms" | "lab_values" | "images" | "profile", boolean>;
+  data_completeness: Record<"symptoms" | "lab_values" | "images" | "profile", boolean> & { lab_history?: boolean };
   limitations: string[];
   provenance: {
     engine_version: string;
@@ -303,4 +354,46 @@ export interface SystemStatus {
   emergency_number: string;
   crisis_line: string;
   disclaimer: string;
+}
+
+export interface AuditEntry {
+  action: string;
+  actor_role: string;
+  detail: string | null;
+  created_at: string;
+}
+
+export interface SupportStatus {
+  active: boolean;
+  expires_at: string | null;
+  reason: string | null;
+  log: AuditEntry[];
+}
+
+export interface StatRow { period: string; dimension: string; count: number | null; display: string }
+
+export interface TeamStats {
+  min_count: number;
+  note: string;
+  totals: {
+    patients: number | string;
+    files_by_kind: StatRow[];
+    analyses_by_month_and_urgency: StatRow[];
+    lab_results_by_test: StatRow[];
+  };
+  counters: { metric: string; label: string; rows: StatRow[] }[];
+  /** older data not yet in the counters (counted at each owner's next sign-in) */
+  not_yet_counted?: { accounts: number; files: number; analyses: number };
+}
+
+export interface SupportRequest { patient_id: number; email: string; reason: string | null; granted_at: string; expires_at: string }
+
+export interface StaffPatientView {
+  patient: { id: number; email: string; full_name: string };
+  grant: { expires_at: string };
+  profile: { sex: string | null; date_of_birth: string | null; allergies: string[]; chronic_conditions: string[]; current_medications: string[] } | null;
+  history: { id: number; category: string; title: string; details: string | null; event_date: string | null; is_ongoing: boolean }[];
+  reports: { id: number; title: string; report_date: string | null; extraction_status: string;
+    lab_values: (Pick<LabValue, "key" | "test" | "value" | "unit" | "ref_low" | "ref_high" | "status" | "raw"> & { corrected?: boolean; original_value?: number | null })[] }[];
+  not_available: string;
 }
