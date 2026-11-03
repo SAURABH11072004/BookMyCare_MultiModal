@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { MockBadge, UrgencyBadge } from "../components/badges";
 import LabResults from "../components/LabResults";
+import SpecialtyCard from "../components/SpecialtyCard";
 import { Alert, Badge, Button, Card, PageHeader, ProgressBar, Spinner, cx } from "../components/ui";
 import { SourceCard } from "./Library";
 import { AssessmentBadge } from "./Trends";
@@ -268,8 +269,10 @@ export function ResultView({ result: r }: { result: AnalysisResult }) {
           <ListBlock icon={FlaskConical} title="Tests to ask about" items={r.care_plan.suggested_tests} />
           <ListBlock icon={ClipboardCheck} title="Questions for your doctor" items={r.explanation.questions_for_doctor} />
         </div>
-        {r.care_plan.specialists.length > 0 && <p className="mt-4 text-sm text-slate-600"><strong>Relevant specialists:</strong> {r.care_plan.specialists.join("; ")}</p>}
+        {!r.care_plan.specialty_recommendations && r.care_plan.specialists.length > 0 && <p className="mt-4 text-sm text-slate-600"><strong>Relevant specialists:</strong> {r.care_plan.specialists.join("; ")}</p>}
       </Card>
+
+      {r.care_plan.specialty_recommendations && <SpecialtyCard rec={r.care_plan.specialty_recommendations} />}
 
       {r.sources.length > 0 && (
         <Card title="Evidence used" subtitle="WHO and CDC passages retrieved for these results. Citation numbers match the [S#] tags above.">

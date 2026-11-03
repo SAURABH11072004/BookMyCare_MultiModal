@@ -12,6 +12,7 @@ import math
 from functools import lru_cache
 from pathlib import Path
 
+from app.services import specialty
 from app.services.lab_parser import SPEC_BY_KEY
 from app.services.symptoms import LABELS
 
@@ -249,7 +250,8 @@ def score_conditions(
             "factors": factors,
             "not_reported": missing_supportive,
             "suggested_tests": cond.get("suggested_tests", []),
-            "specialist": cond.get("specialist"),
+            "specialist": specialty.label_for_condition(cond["key"]),
+            "specialties": specialty.specialties_for_condition(cond["key"]),
             "notes": notes,
         })
     results.sort(key=lambda r: -r["match_score"])

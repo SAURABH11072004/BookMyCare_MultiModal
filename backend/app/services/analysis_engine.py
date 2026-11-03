@@ -26,7 +26,7 @@ from app.ai.base import ImageInput, LLMRequest
 from app.core.config import get_settings
 from app.models import MedicalHistoryEntry, MedicalReport, User
 from app.ai.mock import MOCK_NOTICE
-from app.services import grounding
+from app.services import grounding, specialty
 from app.services.care_plan import build_care_plan
 from app.services.file_store import FileMissing, FileUnreadable, PatientKeyRequired, StorageError, get_file_store
 from app.services.lab_parser import abnormal, reclassify
@@ -204,6 +204,7 @@ def run_analysis(db: Session, user: User, payload, file_key: bytes | None = None
     red_flags = detect_red_flags(symptoms, labs, pctx, payload.severity, payload.duration_days)
     urgency = urgency_from(red_flags, conditions, abnormal_labs)
     care_plan = build_care_plan(urgency, red_flags, conditions, abnormal_labs, pctx)
+    care_plan["specialty_recommendations"] = specialty.recommend(conditions, urgency, trends)
 
     # Evidence: WHO/CDC passages for each condition, red flag and history item (numbered S1, S2...)
     symptom_labels = [LABELS.get(k, k) for k in symptoms]

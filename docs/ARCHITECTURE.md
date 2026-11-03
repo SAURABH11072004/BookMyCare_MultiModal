@@ -109,6 +109,28 @@ Only the patient can open their original reports (`services/patient_keys.py`, `s
   flag: live events set it, and older rows are counted once at the owner's next sign-in (when their key can read
   them), in the month they were created. `/api/staff/stats` reports how much is still waiting (`not_yet_counted`).
 
+## Care navigation (doctor type + nearby facilities)
+
+* **Doctor type is rule-based** (`app/data/specialties.json`, `services/specialty.py`). Each condition maps to a
+  general physician (always first-line) plus optional specialists; lab categories map to specialties
+  (Diabetes/Thyroid -> endocrinology, Lipids/BP -> cardiology, Kidney -> nephrology, Liver -> gastroenterology,
+  Blood count -> haematology, SpO2 -> pulmonology). Suggestions come from condition matches and from worsening,
+  near-limit or persistently abnormal lab trends, and every suggestion lists the reasons that triggered it.
+  Emergencies put the emergency department first. The AI never chooses a specialty. The mapping is hand-written
+  and not clinically validated. Analyses store it as `care_plan.specialty_recommendations`; `GET /api/care/suggested`
+  combines the latest analysis with current trends.
+* **Nearby facilities** (`services/facilities.py`, `GET /api/care/facilities`, `GET /api/care/geocode`) use
+  OpenStreetMap data. Sources are tried in order (`FACILITY_SOURCES`): **Nominatim** (three generic searches,
+  "hospital", "clinic", "doctors", bounded to a box around the location; about 6-8 s for a new area) and then
+  **Overpass** (more complete, but public servers were mostly at capacity when tested on 2026-11-03). If every source
+  fails, results saved for the same area in the last 24 hours are shown and marked as saved. Nominatim also
+  resolves place names. Only the location rounded to
+  2 decimals (about 1 km) and generic facility types are sent; the condition and the chosen specialty are never
+  sent, and specialty filtering happens on the server. Answers are cached for an hour, external calls are limited
+  per user, Nominatim gets at most one request per second, and an identifying User-Agent is sent. Every result is labelled "Map listing (OpenStreetMap), not verified", sorted by distance
+  only, and the page shows OSM attribution. Verified listings (ABDM Health Facility / Professional Registry) are a
+  later step.
+
 ## Safety design
 
 1. Red-flag rules run independently of scoring and always override urgency.

@@ -75,12 +75,34 @@ class Settings(BaseSettings):
     emergency_number: str = "112"
     crisis_line: str = "Tele-MANAS 14416 (India, 24x7 mental health helpline)"
 
+    # Nearby facility search (OpenStreetMap). Only a rounded location (~1 km) is sent, never health data.
+    facility_search_enabled: bool = True
+    # Data sources tried in order. Nominatim answers in about a second; public Overpass servers are often
+    # at capacity (measured 2026-11-03: 3 of 4 timed out, the 4th took ~23 s), so it is the fallback.
+    facility_sources: str = "nominatim,overpass"
+    # Overpass servers, tried in this order (comma-separated).
+    overpass_urls: str = "https://overpass-api.de/api/interpreter,https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+    nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    # OSM usage policies require an identifying User-Agent; add a contact address for a public deployment.
+    osm_user_agent: str = "BookMyCare/0.1 (educational prototype)"
+    geocode_country_codes: str = "in"  # limit place-name search to these ISO countries (comma-separated; empty = worldwide)
+    facility_max_radius_km: float = 25.0
+    facility_searches_per_10min: int = 20  # per user; cached answers do not count
+
     # OCR
     tesseract_cmd: str = ""  # e.g. C:\\Program Files\\Tesseract-OCR\\tesseract.exe
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def facility_source_list(self) -> list[str]:
+        return [x.strip().lower() for x in self.facility_sources.split(",") if x.strip()]
+
+    @property
+    def overpass_url_list(self) -> list[str]:
+        return [u.strip() for u in self.overpass_urls.split(",") if u.strip()]
 
     @property
     def provider_order(self) -> list[str]:

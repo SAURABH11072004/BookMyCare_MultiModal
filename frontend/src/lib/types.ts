@@ -167,6 +167,7 @@ export interface ConditionMatch {
   not_reported: string[];
   suggested_tests: string[];
   specialist: string | null;
+  specialties?: string[];
   notes: string[];
 }
 
@@ -199,6 +200,8 @@ export interface CarePlan {
   suggested_tests: string[];
   specialists: string[];
   personalised: string[];
+  /** absent on analyses saved before specialty rules existed */
+  specialty_recommendations?: SpecialtyRecommendations;
 }
 
 export interface ImageResult {
@@ -396,4 +399,70 @@ export interface StaffPatientView {
   reports: { id: number; title: string; report_date: string | null; extraction_status: string;
     lab_values: (Pick<LabValue, "key" | "test" | "value" | "unit" | "ref_low" | "ref_high" | "status" | "raw"> & { corrected?: boolean; original_value?: number | null })[] }[];
   not_available: string;
+}
+
+// ---- Care navigation ----------------------------------------------------------
+
+export interface Specialty {
+  code: string;
+  name: string;
+  doctor: string;
+  what: string;
+}
+
+export interface SpecialtySuggestion extends Specialty {
+  role: "emergency" | "first_line" | "specialist";
+  reasons: { source: "condition" | "trend" | "safety"; text: string }[];
+  when: string | null;
+}
+
+export interface SpecialtyRecommendations {
+  version: string;
+  items: SpecialtySuggestion[];
+  note: string;
+  based_on_analysis?: { analysis_id: number; created_at: string } | null;
+  trends_considered?: number;
+}
+
+export interface Facility {
+  id: string;
+  name: string;
+  kind: "hospital" | "clinic" | "doctors" | "centre";
+  kind_label: string;
+  lat: number;
+  lon: number;
+  specialities: string[];
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  opening_hours: string | null;
+  emergency: boolean;
+  osm_url: string;
+  distance_km: number;
+  match: "listed" | "emergency" | "hospital" | "unknown";
+  match_text: string;
+  verification: { status: "map_listing"; label: string };
+}
+
+export interface FacilitiesResponse {
+  source: "openstreetmap";
+  /** which OpenStreetMap service answered */
+  via: "nominatim" | "overpass";
+  /** true when every service was down and results saved earlier (up to a day old) are shown */
+  stale: boolean;
+  specialty: string | null;
+  radius_km: number;
+  count: number;
+  results: Facility[];
+  cached: boolean;
+  attribution: string;
+  attribution_url: string;
+  verification_note: string;
+  privacy_note: string;
+}
+
+export interface Place {
+  name: string;
+  lat: number;
+  lon: number;
 }

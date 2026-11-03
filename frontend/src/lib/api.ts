@@ -1,6 +1,6 @@
 import type {
   Analysis, AnalysisInputs, AnalysisSummary, HistoryEntry, Profile, ReportDetail, ReportSummary, TrendsResponse,
-  SecurityStatus, SourceDoc, StaffPatientView, SupportRequest, SupportStatus, SystemStatus, TeamStats, TokenResponse, User,
+  FacilitiesResponse, Place, SecurityStatus, SourceDoc, Specialty, SpecialtyRecommendations, StaffPatientView, SupportRequest, SupportStatus, SystemStatus, TeamStats, TokenResponse, User,
 } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -132,6 +132,15 @@ export const api = {
   listAnalyses: () => request<AnalysisSummary[]>("/analyses"),
   getAnalysis: (id: number) => request<Analysis>(`/analyses/${id}`),
   deleteAnalysis: (id: number) => request<void>(`/analyses/${id}`, { method: "DELETE" }),
+
+  careSpecialties: () => request<Specialty[]>("/care/specialties"),
+  careSuggested: () => request<SpecialtyRecommendations>("/care/suggested"),
+  careFacilities: (lat: number, lon: number, radiusKm: number, specialty: string | null) => {
+    const q = new URLSearchParams({ lat: String(lat), lon: String(lon), radius_km: String(radiusKm) });
+    if (specialty) q.set("specialty", specialty);
+    return request<FacilitiesResponse>(`/care/facilities?${q}`);
+  },
+  geocode: (q: string) => request<{ results: Place[]; attribution: string }>(`/care/geocode?q=${encodeURIComponent(q)}`),
 
   searchKnowledge: (q: string, k = 8) => request<{ query: string; results: SourceDoc[] }>(`/knowledge/search?q=${encodeURIComponent(q)}&k=${k}`),
 };

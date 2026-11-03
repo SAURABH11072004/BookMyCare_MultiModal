@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  Activity, BookOpen, ClipboardList, FileText, HeartPulse, History, Home, LayoutDashboard, LineChart, LogOut, Menu, Users, Stethoscope, User, X,
+  Activity, BookOpen, ClipboardList, FileText, HeartPulse, History, Home, LayoutDashboard, LineChart, LogOut, MapPin, Menu, Users, Stethoscope, User, X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/analyses", label: "Analysis history", icon: Activity, end: true },
   { to: "/reports", label: "Reports & images", icon: FileText },
   { to: "/trends", label: "Lab trends", icon: LineChart },
+  { to: "/care", label: "Find care", icon: MapPin },
   { to: "/history", label: "Medical history", icon: History },
   { to: "/profile", label: "My profile", icon: User },
   { to: "/library", label: "Health library", icon: BookOpen },

@@ -10,6 +10,7 @@ import HomePage from "./pages/Home";
 const AnalysesPage = lazy(() => import("./pages/Analyses"));
 const AnalysisResultPage = lazy(() => import("./pages/AnalysisResult"));
 const DashboardPage = lazy(() => import("./pages/Dashboard"));
+const FindCarePage = lazy(() => import("./pages/FindCare"));
 const HistoryPage = lazy(() => import("./pages/History"));
 const LibraryPage = lazy(() => import("./pages/Library"));
 const LoginPage = lazy(() => import("./pages/Auth").then((m) => ({ default: m.LoginPage })));
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/:id" element={<ReportDetailPage />} />
         <Route path="trends" element={<TrendsPage />} />
+        <Route path="care" element={<FindCarePage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="analyses" element={<AnalysesPage />} />
         <Route path="analyses/new" element={<NewAnalysisPage />} />
